@@ -55,6 +55,19 @@ def robot_name_from_env_variable():
     return github_con.get_user().login
 
 
+def review_user_permission_level(repo, login):
+    """Review a user's permission level.
+
+    Not supported yet by PyGithub, so hack it.
+    https://developer.github.com/v3/repos/collaborators/#review-a-users-permission-level
+    """
+    import json
+
+    url = repo.collaborators_url.format(**{"/collaborator":"/"+login})+"/permission"
+    status, _, data = repo._requester.requestJson("GET", url)
+    return json.loads(data.decode("utf8"))["permission"] if status == 200 else "none"
+
+
 class BotHandler:
     def __init__(self, handler, robot_name=None, gh_token=None):
         self.handler = handler
@@ -82,6 +95,22 @@ class BotHandler:
         return [order_cmd for order_cmd in dir(self.handler)
                 if getattr(getattr(self.handler, order_cmd), "bot_order", False)]
 
+    def check_sender_permission(self, webhook_data, permission):
+        user = webhook_data.comment.user.login
+        repo = webhook_data.repo
+
+        if repo.organization is None and user == repo.owner.login:  # Always authorize the owner on it's own repo
+            return True
+        actual_permission = review_user_permission_level(repo, user)
+        # FIXME Be more generic than that....
+        if actual_permission == "admin":
+            return True
+        if actual_permission == "write" and permission in ["write", "read", "none"]:
+            return True
+        if actual_permission == "read" and permission in ["read", "none"]:
+            return True
+        return False
+
     def manage_comment(self, webhook_data):
         if webhook_data is None:
             return {'message': 'Nothing for me'}
@@ -100,6 +129,10 @@ class BotHandler:
                     webhook_data.comment.create_reaction("+1")
                 except GithubException:
                     pass
+                # FIXME need to allow parameter of "order"
+                is_allowed = self.check_sender_permission(webhook_data, "write")
+                if not is_allowed:
+                    return {'message': "You don't have the necessary permissions for that command"}
                 with exception_to_github(webhook_data.issue):  # Just in case
                     response = getattr(self.handler, orderstr)(webhook_data.issue, *split_text)
             else:

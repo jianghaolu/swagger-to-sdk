@@ -1,7 +1,11 @@
 import pytest
 
-from swaggertosdk.restapi.bot_framework import BotHandler, order, build_from_issue_comment, build_from_issues
+from swaggertosdk.restapi.bot_framework import BotHandler, order, build_from_issue_comment, build_from_issues, review_user_permission_level
 
+
+def test_review_user_permission_level(github_client):
+    repo = github_client.get_repo("lmazuel/test-git-command")
+    assert review_user_permission_level(repo, "lmazuel") == "admin"
 
 def test_webhook_data(github_client, github_token):
     repo = github_client.get_repo("lmazuel/TestingRepo")
@@ -122,6 +126,41 @@ def test_bot_basic_command(github_client, github_token):
 
     # Clean
     help_comment.delete()
+
+def test_bot_basic_command_forbidden(github_client, github_token):
+    repo = github_client.get_repo("lmazuel/TestingRepo")
+    issue = repo.get_issue(17)
+    
+    class BotCommand:
+        @order
+        def command1(self, _):
+            pytest.fail("Shoudl fail before here with not enough permission" )
+
+    bot = BotHandler(BotCommand(), "AutorestCI", github_token)
+
+    fake_webhook = {
+        'action': 'opened',  # What is the comment state?
+        'repository': {
+            'full_name': issue.repository.full_name  # On what repo is this command?
+        },
+        'issue': {
+            'number': issue.number,  # On what issue is this comment?
+            'body': "@AutorestCI command1"  # Message?
+        },
+        'sender': {
+            'login': "lmazuel-fork"  # Who wrote the command?
+        },
+    }
+
+    response = bot.issues(fake_webhook)
+    assert response["message"] == "You don't have the necessary permissions for that command"
+
+    help_comment = list(issue.get_comments())[-1]
+    assert "You don't have the necessary permissions for that command" in help_comment.body
+
+    # Clean
+    help_comment.delete()
+
 
 def test_bot_basic_failure(github_client, github_token):
     repo = github_client.get_repo("lmazuel/TestingRepo")
