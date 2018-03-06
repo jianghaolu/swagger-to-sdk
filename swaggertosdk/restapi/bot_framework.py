@@ -132,9 +132,10 @@ class BotHandler:
                 # FIXME need to allow parameter of "order"
                 is_allowed = self.check_sender_permission(webhook_data, "write")
                 if not is_allowed:
-                    return {'message': "You don't have the necessary permissions for that command"}
-                with exception_to_github(webhook_data.issue):  # Just in case
-                    response = getattr(self.handler, orderstr)(webhook_data.issue, *split_text)
+                    response = "You don't have the necessary permissions for that command"
+                else:
+                    with exception_to_github(webhook_data.issue):  # Just in case
+                        response = getattr(self.handler, orderstr)(webhook_data.issue, *split_text)
             else:
                 response = "I didn't understand your command:\n```bash\n{}\n```\nin this context, sorry :(\n".format(
                     command
