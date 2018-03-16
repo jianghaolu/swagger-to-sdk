@@ -2,7 +2,8 @@ import argparse
 import logging
 import os
 
-from swaggertosdk.python_sdk_tools import build_package_from_pr_number
+from swaggertosdk.python_sdk_tools import build_package_from_pr_number as python_build_package
+from swaggertosdk.java_sdk_tools import build_package_from_pr_number as java_build_package
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,13 +39,22 @@ def generate_main():
         logging.basicConfig()
         main_logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
-    build_package_from_pr_number(
-        os.environ.get("GH_TOKEN", None),
-        args.repo_id,
-        args.pr_number,
-        args.output_folder,
-        with_comment=args.with_comment
-    )
+    if args.repo_id == "Azure/azure-sdk-for-python":
+        python_build_package(
+            os.environ.get("GH_TOKEN", None),
+            args.repo_id,
+            args.pr_number,
+            args.output_folder,
+            with_comment=args.with_comment
+        )
+    elif args.repo_id == "Azure/azure-libraries-for-java":
+        java_build_package(
+            os.environ.get("GH_TOKEN", None),
+            args.repo_id,
+            args.pr_number,
+            args.output_folder,
+            with_comment=args.with_comment
+        )
 
 if __name__ == "__main__":
     generate_main()
